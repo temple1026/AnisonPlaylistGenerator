@@ -1,0 +1,6 @@
+__pycache__/*
+.vscode/*
+config.ini
+Playlist/*
+data/*
+info.db
