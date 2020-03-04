@@ -1,24 +1,21 @@
-import os 
-from bs4 import BeautifulSoup as bs
-import glob
-import sqlite3
-from common import trim
-from tqdm import tqdm
-import re
-import difflib
-
-from mutagen.flac import FLAC
-from mutagen.easyid3 import EasyID3
-from mutagen.mp3 import MP3
-from mutagen.mp4 import MP4
-import threading
-
-from config import Config
+import argparse
 import csv
-
+import difflib
+import glob
+import os
+import re
+import sqlite3
+import threading
 from itertools import chain
 
-import argparse
+from mutagen.easyid3 import EasyID3
+from mutagen.flac import FLAC
+from mutagen.mp3 import MP3
+from mutagen.mp4 import MP4
+from tqdm import tqdm
+
+from .common import trim
+from .config import Config
 
 class APG():
     def __init__(self, path_database):
@@ -47,6 +44,9 @@ class APG():
 
 
     def makeAnisonDatabase(self, path_data):
+        # artist_type = ["歌手", "作詞", "作曲"]
+        # music_type = ["OP", "ED", "IM", "IN"]
+        
         data_name = ["anison.csv", "game.csv", "sf.csv"]
         file_paths = [i for i in glob.glob(path_data + "/**", recursive=True) if os.path.splitext(i)[-1] == ".csv"]
         
@@ -166,7 +166,7 @@ class APG():
         return cursor.fetchall()
 
         
-    def generatePlaylist(self, path_playlist, use_keyword=False, keyword="", th_title=0.55, th_artist=0.8, 
+    def generatePlaylist(self, path_playlist, use_key=False, keyword="", th_title=0.55, th_artist=0.8, 
                          duplication=False, check_categories={"anison":True, "game":True, "sf":True}):
         """
         Generate playlist from database.
@@ -181,7 +181,7 @@ class APG():
                 if not check_categories[category]:
                     continue
 
-                if use_keyword:
+                if use_key:
                     cursor.execute("SELECT DISTINCT artist FROM '%s' WHERE anime LIKE \'%%%s%%\'" % (category, trim(keyword)))
                 else:
                     cursor.execute("SELECT DISTINCT artist FROM '%s'" % category)
@@ -202,7 +202,7 @@ class APG():
                     if 0 < len(similarities) and th_artist < max(similarities):
                         info_list = self.getInfoDB('SELECT * FROM library WHERE artist LIKE \'' + artist + '\'', cursor)
 
-                        if use_keyword:
+                        if use_key:
                             cursor.execute("SELECT DISTINCT * FROM '%s' WHERE artist LIKE \'%%%s%%\' AND anime LIKE \'%%%s%%\'" % (category, artist_db[similarities.index(max(similarities))][0], trim(keyword)))
                         else:
                             cursor.execute("SELECT DISTINCT * FROM '%s' WHERE artist LIKE \'%%%s%%\'" % (category, artist_db[similarities.index(max(similarities))][0]))
@@ -224,9 +224,9 @@ class APG():
             pl.writelines("\n".join([line[0] for line in lines]))
 
 
-def run():
+def run(path_config='./config.ini'):
 
-    config = Config("./config.ini").getConfig()
+    config = Config(path_config).getConfig()
 
     path_data = config.get('path', 'data')
     path_music = config.get('path', 'library')

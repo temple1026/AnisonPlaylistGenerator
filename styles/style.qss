@@ -1,0 +1,100 @@
+QWidget{
+    font-family: "Yu Gothic Light";
+    font-size: 9pt;
+    background-color: #1E1E1E;
+    color:#0f0f7f
+}
+
+QToolTip {
+    color: #acacac;
+    background-color: #2c2c2c;
+    border: 2px;
+    border-radius: 5px;
+}
+
+QDockWidget { 
+    color: #f00000; 
+}
+
+QLabel{
+    color: #cccccc;
+}
+
+QPushButton{
+    color: #ffffff;
+    background-color: #007acc;
+    border: 2px;
+    border-radius: 5px;
+    
+}
+
+QPushButton:hover,QPushButton:pressed{
+    color: #ffffff;
+    background-color:#009aec
+}
+
+QPushButton:disabled{
+    color: #acacac;
+    background-color:#dfdfdf
+}
+
+QLineEdit{
+    color:#cccccc;
+    border:1px solid #a0a0a0;
+    border-radius: 5px;
+    background-color:#3c3c3c
+}
+
+QLineEdit:hover{
+    color:#cccccc;
+    border:1px solid #007acc;
+    border-radius: 5px
+}
+
+QLineEdit:disabled{
+    color:#acacac;
+    border:1px solid #2c2c2c;
+    border-radius: 5px;
+    background-color:#2c2c2c
+}
+
+QCheckBox{
+    color:#cccccc;
+    background-color:#1e1e1e
+}
+
+QSpinBox{
+    color:#cccccc;
+    border:1px solid #a0a0a0;
+    border-radius: 5px;
+    background-color:#3c3c3c
+}
+
+QSpinBox:hover{
+    color:#cccccc;
+    border:1px solid #007acc;
+    border-radius: 5px
+}
+
+QSpinBox:disabled{
+    color:#acacac;
+    border:1px solid #2c2c2c;
+    border-radius: 5px;
+    background-color:#2c2c2c
+}
+
+QProgressBar{
+    text-align:center;
+    color:#0caf0c;
+    font-weight:bold
+}
+
+QProgressBar::chunk{
+    background-color:#50ff50;
+    width: 10px;
+    margin: 1px;
+}
+
+QStatusBar{
+    color:#cccccc;
+}

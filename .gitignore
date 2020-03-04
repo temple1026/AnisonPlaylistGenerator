@@ -1,6 +1,10 @@
-__pycache__/*
-.vscode/*
+.gitignore
+__pycache__/
 config.ini
-Playlist/*
-data/*
 info.db
+data
+data/*
+playlist
+build/
+dist/
+*.spec

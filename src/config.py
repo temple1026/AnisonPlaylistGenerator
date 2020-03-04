@@ -2,6 +2,7 @@ import configparser
 import glob
 import os
 
+
 class Config():
     def __init__(self, config_name):
         super(Config, self).__init__()
@@ -39,10 +40,9 @@ class Config():
         # For validation of the ini file
         return True
 
-
     def saveConfig(self, name='config.ini', path_library='C://Users/'+os.getlogin() + '/Music', path_data='./data', 
-            path_playlist='./playlist/AnimeSongs.m3u', path_database='./info.db', width=640, height=480):
-        
+            path_playlist='./playlist/AnimeSongs.m3u', path_database='./info.db', width=800, height=480, 
+            path_style="./styles/style.qss", language="ja"):
 
         config = configparser.ConfigParser()
 
@@ -56,10 +56,13 @@ class Config():
         config.set('screen', 'width', str(width))
         config.set('screen', 'height', str(height))
 
+        config.add_section('general')
+        config.set('general', 'style', path_style)
+        config.set('general', 'language', language)
+        
         with open(name, 'w') as file:
             config.write(file)
 
         self.config = config
 
         return config
-
