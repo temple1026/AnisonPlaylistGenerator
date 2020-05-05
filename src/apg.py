@@ -178,7 +178,7 @@ class APG():
         return cursor.fetchall()
 
         
-    def generatePlaylist(self, path_playlist, use_key=True, keyword="FINAL FANTASY", th_title=0.55, th_artist=0.8, 
+    def generatePlaylist(self, path_playlist, use_key=0, keyword="", th_title=0.55, th_artist=0.8, 
                          duplication=False, check_categories={"anison":True, "game":True, "sf":True}):
         """
         Generate playlist from database.
@@ -201,8 +201,8 @@ class APG():
             target_category = target_category[:target_category.rfind(" OR ")]
             # # name_anime LIKE '%ｶﾞﾝﾀﾞﾑ%'
 
-            if use_key:
-                phrase = {True:"AND (target_anime.name_anime LIKE \'%" + trim(keyword) + "%\')", False:""}
+            if use_key and keyword != "":
+                phrase = {1:"AND (target_anime.name_anime LIKE \'%" + trim(keyword) + "%\')", 0:""}
                 print(phrase[use_key])
 
                 cursor.executescript(
@@ -240,9 +240,6 @@ class APG():
                 )
                 lines = cursor.execute("SELECT DISTINCT tmp1.name_song, tmp1.length_file, tmp1.path_file, tmp1.name_local_artist FROM tmp1 INNER JOIN tmp ON ((tmp1.name_song LIKE tmp.name_song||'%') AND (tmp1.name_local_artist LIKE '%'||tmp.name_artist||'%'))")
                 lines = lines.fetchall()
-                #lines = cursor.execute("SELECT * FROM tmp WHERE name_artist LIKE '%%dreams%%'").fetchall()
-                # print(lines)
-                # exit()
             else:
                 cursor.executescript(
                     """

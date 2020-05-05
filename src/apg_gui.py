@@ -415,7 +415,7 @@ class MainWindow(QWidget):
         check_category = {"anison":self.check_anime.checkState(), "game":self.check_game.checkState(), "sf":self.check_sf.checkState()}
 
         self.apg.generatePlaylist(self.line_playlist.text(), 
-                                self.keyword.checkState(), 
+                                1 if self.keyword.checkState() else 0, 
                                 self.line_keyword.text(), 
                                 float(self.spin_title.text())/100, 
                                 float(self.spin_artist.text())/100,
