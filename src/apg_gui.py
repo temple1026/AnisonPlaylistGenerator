@@ -416,7 +416,7 @@ class MainWindow(QWidget):
 
         self.apg.generatePlaylist(self.line_playlist.text(), 
                                 1 if self.keyword.checkState() else 0, 
-                                self.line_keyword.text(), 
+                                self.line_keyword.text() if self.keyword.checkState() else "", 
                                 float(self.spin_title.text())/100, 
                                 float(self.spin_artist.text())/100,
                                 self.duplication.checkState(),

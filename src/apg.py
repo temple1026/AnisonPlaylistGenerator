@@ -200,6 +200,12 @@ class APG():
 
             target_category = target_category[:target_category.rfind(" OR ")]
             # # name_anime LIKE '%ｶﾞﾝﾀﾞﾑ%'
+            
+            if use_key:
+                result = cursor.execute("SELECT id_anime FROM animes WHERE name_anime LIKE '%'||?||'%'", (trim(keyword), )).fetchall()
+                if len(result) < 1 or len(result) == cursor.execute("SELECT COUNT(id_anime) FROM animes").fetchall()[0][0]:
+                    print("Anime not found.")
+                    return
 
             if use_key and keyword != "":
                 phrase = {1:"AND (target_anime.name_anime LIKE \'%" + trim(keyword) + "%\')", 0:""}
