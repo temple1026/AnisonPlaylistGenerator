@@ -201,78 +201,96 @@ class APG():
             target_category = target_category[:target_category.rfind(" OR ")]
             # # name_anime LIKE '%ｶﾞﾝﾀﾞﾑ%'
             
-            if use_key:
-                result = cursor.execute("SELECT id_anime FROM animes WHERE name_anime LIKE '%'||?||'%'", (trim(keyword), )).fetchall()
-                if len(result) < 1 or len(result) == cursor.execute("SELECT COUNT(id_anime) FROM animes").fetchall()[0][0]:
-                    print("Anime not found.")
-                    return
 
-            if use_key and keyword != "":
-                phrase = {1:"AND (target_anime.name_anime LIKE \'%" + trim(keyword) + "%\')", 0:""}
-                print(phrase[use_key])
+            # if use_key:
+            #     result = cursor.execute("SELECT id_anime FROM animes WHERE name_anime LIKE '%'||?||'%'", (trim(keyword), )).fetchall()
+            #     if len(result) < 1 or len(result) == cursor.execute("SELECT COUNT(id_anime) FROM animes").fetchall()[0][0]:
+            #         print("Anime not found.")
+            #         return
 
-                cursor.executescript(
-                    """
-                    CREATE TEMPORARY TABLE tmp AS
-                        SELECT target_info.name_anime, artists.name_artist, target_info.name_song
+            # if use_key:
+            phrase = {1:"AND (target_anime.name_anime LIKE \'%" + trim(keyword) + "%\')", 0:""}
+            print(phrase[use_key])
+            # SELECT DISTINCT id_artist, name_artist, id_local_artist, name_local_artist FROM local_artists INNER JOIN tmp3 ON local_artists.name_local_artist LIKE '%'||tmp3.name_artist||'%';
+            cursor.executescript(
+                """
+                CREATE TEMPORARY TABLE anison AS
+                    -- アニソンのアーティストを取得
+                    SELECT local_artists.name_local_artist, target_info.name_artist, target_info.name_song
+                    FROM local_artists
+                    INNER JOIN(
+                        SELECT target_artist.name_anime, artists.name_artist, target_artist.name_song
                         FROM artists
                         INNER JOIN(
+                            -- アニソンIDからアニソン名を取得
                             SELECT target_song.name_anime, songs.name_song, songs.id_artist
                             FROM songs
                             INNER JOIN(
+                                -- 番組名に対応したアニソンIDを取得
                                 SELECT target_anime.name_anime, relation_songs.id_song
                                     FROM relation_songs
                                     INNER JOIN (
+                                        -- 番組名の取得
                                         SELECT animes.id_anime, animes.name_anime
                                         FROM animes
                                         INNER JOIN (
+                                            -- カテゴリIDに応じて番組を取得
                                             SELECT id_category 
                                             FROM categories 
                                             WHERE """ + target_category + """
                                         ) AS target_id ON target_id.id_category = animes.id_category
                                 ) AS target_anime ON ((target_anime.id_anime = relation_songs.id_anime) """ + phrase[use_key] + """)
                             )AS target_song ON target_song.id_song = songs.id_song
-                        )AS target_info ON target_info.id_artist = artists.id_artist;
-                
-                    CREATE TEMPORARY TABLE tmp1 AS 
-                        SELECT target_files.name_local_artist, local_files.name_song, local_files.length_file, local_files.path_file
-                        FROM local_files
+                        )AS target_artist ON target_artist.id_artist = artists.id_artist
+                    )AS target_info ON local_artists.name_local_artist LIKE '%'||target_info.name_artist||'%';
+
+                DELETE FROM anison WHERE name_artist = '' OR name_local_artist = '';
+
+                CREATE TEMPORARY TABLE files AS 
+                    SELECT target_files.name_local_artist, local_files.name_song, local_files.length_file, local_files.path_file
+                    FROM local_files
+                    INNER JOIN(
+                        SELECT target_artists.name_local_artist, target_artists.id_local_file
+                        FROM (SELECT name_local_artist FROM anison) AS anison_artists
                         INNER JOIN(
+                            -- IDからアーティスト名を取得
                             SELECT local_artists.name_local_artist, local_musics.id_local_file
                             FROM local_musics
                             INNER JOIN local_artists ON local_artists.id_local_artist = local_musics.id_local_artist
-                        )AS target_files ON target_files.id_local_file = local_files.id_local_file;
-                    """
-                )
-                lines = cursor.execute("SELECT DISTINCT tmp1.name_song, tmp1.length_file, tmp1.path_file, tmp1.name_local_artist FROM tmp1 INNER JOIN tmp ON ((tmp1.name_song LIKE tmp.name_song||'%') AND (tmp1.name_local_artist LIKE '%'||tmp.name_artist||'%'))")
-                lines = lines.fetchall()
-            else:
-                cursor.executescript(
-                    """
-                    -- カテゴリに対応するアニメを抽出
-                    CREATE TEMPORARY TABLE tmp AS SELECT id_anime, name_anime FROM animes INNER JOIN (SELECT id_category FROM categories WHERE """ + target_category + """) AS cat_id ON cat_id.id_category = animes.id_category;
-                    -- アニメに対応する楽曲を抽出
-                    CREATE TEMPORARY TABLE tmp1 AS SELECT id_song FROM relation_songs INNER JOIN tmp ON tmp.id_anime = relation_songs.id_anime;
-                    -- アニソンに対応するアーティストidを抽出
-                    CREATE TEMPORARY TABLE tmp2 AS SELECT name_song, id_artist FROM songs INNER JOIN tmp1 ON tmp1.id_song = songs.id_song;
-                    -- アーティスト名とアーティストidを抽出
-                    CREATE TEMPORARY TABLE tmp3 AS SELECT tmp2.id_artist, artists.name_artist, tmp2.name_song FROM artists INNER JOIN tmp2 ON tmp2.id_artist = artists.id_artist;
-                    -- ローカルアーティストidとアニソンアーティストidの対応をつける
-                    CREATE TEMPORARY TABLE tmp4 AS SELECT DISTINCT id_artist, name_artist, id_local_artist, name_local_artist FROM local_artists INNER JOIN tmp3 ON local_artists.name_local_artist LIKE '%'||tmp3.name_artist||'%';
-                    -- アーティスト名のないレコードを削除
-                    DELETE FROM tmp4 WHERE name_artist = '';
+                        )AS target_artists ON target_artists.name_local_artist = anison_artists.name_local_artist
+                    )AS target_files ON target_files.id_local_file = local_files.id_local_file;
+                """
+            )
 
-                    -- 該当するローカルアーティストのファイルを取得
-                    CREATE TEMPORARY TABLE tmp5 AS SELECT id_local_file, name_artist FROM local_musics INNER JOIN tmp4 ON tmp4.id_local_artist = local_musics.id_local_artist;
-                    -- ファイルから曲などの情報を取得
-                    CREATE TEMPORARY TABLE tmp6 AS SELECT DISTINCT name_artist, name_song, length_file, path_file FROM local_files INNER JOIN tmp5 ON tmp5.id_local_file = local_files.id_local_file;
-                    -- アニソンアーティストの曲を取得
-                    CREATE TEMPORARY TABLE tmp7 AS SELECT name_song, name_artist FROM songs INNER JOIN tmp4 ON tmp4.id_artist = songs.id_artist; 
-                    -- 一致する曲を取得
-                    CREATE TEMPORARY TABLE tmp8 AS SELECT DISTINCT tmp6.name_song, length_file, path_file FROM tmp6 INNER JOIN tmp7 ON ((tmp6.name_song LIKE tmp7.name_song||'%') AND (tmp6.name_artist = tmp7.name_artist)); 
-                    """
-                )
-                lines = cursor.execute("SELECT * FROM tmp8").fetchall()
+            lines = cursor.execute("SELECT DISTINCT files.name_song, files.length_file, files.path_file, files.name_local_artist FROM files INNER JOIN anison ON ((files.name_song LIKE anison.name_song||'%') AND (files.name_local_artist = anison.name_local_artist))")
+            lines = lines.fetchall()
+            # else:
+            #     cursor.executescript(
+            #         """
+            #         -- カテゴリに対応するアニメを抽出
+            #         CREATE TEMPORARY TABLE tmp AS SELECT id_anime, name_anime FROM animes INNER JOIN (SELECT id_category FROM categories WHERE """ + target_category + """) AS cat_id ON cat_id.id_category = animes.id_category;
+            #         -- アニメに対応する楽曲を抽出
+            #         CREATE TEMPORARY TABLE tmp1 AS SELECT id_song FROM relation_songs INNER JOIN tmp ON tmp.id_anime = relation_songs.id_anime;
+            #         -- アニソンに対応するアーティストidを抽出
+            #         CREATE TEMPORARY TABLE tmp2 AS SELECT name_song, id_artist FROM songs INNER JOIN tmp1 ON tmp1.id_song = songs.id_song;
+            #         -- アーティスト名とアーティストidを抽出
+            #         CREATE TEMPORARY TABLE tmp3 AS SELECT tmp2.id_artist, artists.name_artist, tmp2.name_song FROM artists INNER JOIN tmp2 ON tmp2.id_artist = artists.id_artist;
+            #         -- ローカルアーティストidとアニソンアーティストidの対応をつける
+            #         CREATE TEMPORARY TABLE tmp4 AS SELECT DISTINCT id_artist, name_artist, id_local_artist, name_local_artist FROM local_artists INNER JOIN tmp3 ON local_artists.name_local_artist LIKE '%'||tmp3.name_artist||'%';
+            #         -- アーティスト名のないレコードを削除
+            #         DELETE FROM tmp4 WHERE name_artist = '';
+
+            #         -- 該当するローカルアーティストのファイルを取得
+            #         CREATE TEMPORARY TABLE tmp5 AS SELECT id_local_file, name_artist FROM local_musics INNER JOIN tmp4 ON tmp4.id_local_artist = local_musics.id_local_artist;
+            #         -- ファイルから曲などの情報を取得
+            #         CREATE TEMPORARY TABLE tmp6 AS SELECT DISTINCT name_artist, name_song, length_file, path_file FROM local_files INNER JOIN tmp5 ON tmp5.id_local_file = local_files.id_local_file;
+            #         -- アニソンアーティストの曲を取得
+            #         CREATE TEMPORARY TABLE tmp7 AS SELECT name_song, name_artist FROM songs INNER JOIN tmp4 ON tmp4.id_artist = songs.id_artist; 
+            #         -- 一致する曲を取得
+            #         CREATE TEMPORARY TABLE tmp8 AS SELECT DISTINCT tmp6.name_song, length_file, path_file FROM tmp6 INNER JOIN tmp7 ON ((tmp6.name_song LIKE tmp7.name_song||'%') AND (tmp6.name_artist = tmp7.name_artist)); 
+            #         """
+            #     )
+            #     lines = cursor.execute("SELECT * FROM tmp8").fetchall()
 
             lines = [["#EXTINF: " + str(int(line[1])) + ", " + line[0] + "\n" + line[2]] for line in lines]
             pl.writelines('#EXTM3U \n')
@@ -292,11 +310,11 @@ def run(path_config='./config.ini'):
     print(path_database)
     gen = APG(path_database)
     
-    print("Adding anison information to the database. (1/3)")
-    gen.makeAnisonDatabase(path_data)
+    # print("Adding anison information to the database. (1/3)")
+    # gen.makeAnisonDatabase(path_data)
 
-    print("Adding lirary information to the database. (2/3)")
-    gen.makeLibrary(path_music)
+    # print("Adding lirary information to the database. (2/3)")
+    # gen.makeLibrary(path_music)
 
     print("Making playlist. (3/3)")
     gen.generatePlaylist(path_playlist)
