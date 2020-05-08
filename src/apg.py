@@ -52,7 +52,7 @@ class APG():
             "CREATE TABLE IF NOT EXISTS types(id_type INTEGER PRIMARY KEY, name_type UNIQUE)",
             "CREATE TABLE IF NOT EXISTS categories(id_category INTEGER PRIMARY KEY, name_category UNIQUE)",
             "CREATE TABLE IF NOT EXISTS local_artists(id_local_artist INTEGER PRIMARY KEY, name_local_artist UNIQUE)",
-            "CREATE TABLE IF NOT EXISTS local_musics(id_local_music INTEGER PRIMARY KEY, id_local_artist, id_local_file, UNIQUE(id_local_artist, id_local_file))",
+            "CREATE TABLE IF NOT EXISTS local_songs(id_local_song INTEGER PRIMARY KEY, id_local_artist, id_local_file, UNIQUE(id_local_artist, id_local_file))",
             "CREATE TABLE IF NOT EXISTS local_files(id_local_file INTEGER PRIMARY KEY, name_song, length_file, path_file UNIQUE)",
         ]
 
@@ -169,7 +169,7 @@ class APG():
                     cursor.execute("INSERT OR IGNORE INTO local_files(name_song, length_file, path_file) VALUES (?, ?, ?)", (trim(title), length, music_file, )).lastrowid
                     id_local_file = cursor.execute("SELECT id_local_file FROM local_files WHERE path_file = ? ", (music_file,)).fetchall()[0][0]
                     
-                    cursor.execute("INSERT OR IGNORE INTO local_musics(id_local_artist, id_local_file) VALUES (?, ?)", (id_local_artist, id_local_file,)).lastrowid
+                    cursor.execute("INSERT OR IGNORE INTO local_songs(id_local_artist, id_local_file) VALUES (?, ?)", (id_local_artist, id_local_file,)).lastrowid
 
             con.commit()
 
@@ -178,8 +178,9 @@ class APG():
         return cursor.fetchall()
 
         
-    def generatePlaylist(self, path_playlist, use_key=0, keyword="", th_title=0.55, th_artist=0.8, 
-                         duplication=False, check_categories={"anison":True, "game":True, "sf":True}):
+    def generatePlaylist(self, path_playlist, use_key=0, keyword="", # th_title=0.55, th_artist=0.8, 
+                         # duplication=False, 
+                         check_categories={"anison":True, "game":True, "sf":True}):
         """
         Generate playlist from database.
         """
@@ -199,6 +200,7 @@ class APG():
                 return
 
             target_category = target_category[:target_category.rfind(" OR ")]
+            self.prog_playlist = 10
 
             phrase = {1:"AND (target_anime.name_anime LIKE \'%" + trim(keyword) + "%\')", 0:""}
             cursor.executescript(
@@ -244,20 +246,20 @@ class APG():
                         FROM (SELECT name_local_artist FROM anison) AS anison_artists
                         INNER JOIN(
                             -- IDからアーティスト名を取得
-                            SELECT local_artists.name_local_artist, local_musics.id_local_file
-                            FROM local_musics
-                            INNER JOIN local_artists ON local_artists.id_local_artist = local_musics.id_local_artist
+                            SELECT local_artists.name_local_artist, local_songs.id_local_file
+                            FROM local_songs
+                            INNER JOIN local_artists ON local_artists.id_local_artist = local_songs.id_local_artist
                         )AS target_artists ON target_artists.name_local_artist = anison_artists.name_local_artist
                     )AS target_files ON target_files.id_local_file = local_files.id_local_file;
                 """
             )
-
+            self.prog_playlist = 70
             lines = cursor.execute("SELECT DISTINCT files.name_song, files.length_file, files.path_file, files.name_local_artist FROM files INNER JOIN anison ON ((files.name_song LIKE anison.name_song||'%') AND (files.name_local_artist = anison.name_local_artist))").fetchall()
 
             lines = [["#EXTINF: " + str(int(line[1])) + ", " + line[0] + "\n" + line[2]] for line in lines]
             pl.writelines('#EXTM3U \n')
             pl.writelines("\n".join([line[0] for line in lines]))
-
+            self.prog_playlist = 100
 
 def run(path_config='./config.ini'):
 
@@ -272,11 +274,11 @@ def run(path_config='./config.ini'):
     print(path_database)
     gen = APG(path_database)
     
-    # print("Adding anison information to the database. (1/3)")
-    # gen.makeAnisonDatabase(path_data)
+    print("Adding anison information to the database. (1/3)")
+    gen.makeAnisonDatabase(path_data)
 
-    # print("Adding lirary information to the database. (2/3)")
-    # gen.makeLibrary(path_music)
+    print("Adding lirary information to the database. (2/3)")
+    gen.makeLibrary(path_music)
 
     print("Making playlist. (3/3)")
     gen.generatePlaylist(path_playlist)

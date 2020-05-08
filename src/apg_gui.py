@@ -161,36 +161,36 @@ class MainWindow(QWidget):
         self.generate_only.clicked.connect(self.checkClicked)
         self.generate_only.setToolTip(self.sentences["tips_gen_only"])
 
-        self.duplication = QCheckBox(self.sentences["allow_dup"],self)
-        self.duplication.setObjectName("dup")
-        self.duplication.toggle()
-        self.duplication.setGeometry(self.width*0.10, self.height*0.74, self.width*0.3, 30)
-        self.duplication.clicked.connect(self.checkClicked)
-        self.duplication.setToolTip(self.sentences["tips_dup"])
+        # self.duplication = QCheckBox(self.sentences["allow_dup"],self)
+        # self.duplication.setObjectName("dup")
+        # self.duplication.toggle()
+        # self.duplication.setGeometry(self.width*0.10, self.height*0.74, self.width*0.3, 30)
+        # self.duplication.clicked.connect(self.checkClicked)
+        # self.duplication.setToolTip(self.sentences["tips_dup"])
 
         # Define the spin button for the similarity of title
-        self.label_spin_title = QLabel(self.sentences["rate_title"], self)
-        self.label_spin_title.setGeometry(self.width*0.65, self.height*0.55, self.width*0.3, 30)
+        # self.label_spin_title = QLabel(self.sentences["rate_title"], self)
+        # self.label_spin_title.setGeometry(self.width*0.65, self.height*0.55, self.width*0.3, 30)
 
-        self.spin_title = QSpinBox(self)
-        self.spin_title.setObjectName("rate_title")
-        self.spin_title.setRange(0, 100)
-        self.spin_title.setValue(55)
-        self.spin_title.setGeometry(self.width*0.85, self.height*0.55, self.width*0.07, 30)
-        self.spin_title.valueChanged.connect(self.spinClicked)
-        self.spin_title.setToolTip(self.sentences["tips_rate_title"])
+        # self.spin_title = QSpinBox(self)
+        # self.spin_title.setObjectName("rate_title")
+        # self.spin_title.setRange(0, 100)
+        # self.spin_title.setValue(55)
+        # self.spin_title.setGeometry(self.width*0.85, self.height*0.55, self.width*0.07, 30)
+        # self.spin_title.valueChanged.connect(self.spinClicked)
+        # self.spin_title.setToolTip(self.sentences["tips_rate_title"])
 
         # Define the spin button for the similality of artist
-        self.label_spin_artist = QLabel(self.sentences["rate_artist"], self)
-        self.label_spin_artist.setGeometry(self.width*0.65, self.height*0.65, self.width*0.3, 30)
+        # self.label_spin_artist = QLabel(self.sentences["rate_artist"], self)
+        # self.label_spin_artist.setGeometry(self.width*0.65, self.height*0.65, self.width*0.3, 30)
 
-        self.spin_artist = QSpinBox(self)
-        self.spin_artist.setObjectName("rate_artist")
-        self.spin_artist.setRange(0, 100)
-        self.spin_artist.setValue(80)
-        self.spin_artist.setGeometry(self.width*0.85, self.height*0.65, self.width*0.07, 30)
-        self.spin_artist.valueChanged.connect(self.spinClicked)
-        self.spin_artist.setToolTip(self.sentences["tips_rate_artist"])
+        # self.spin_artist = QSpinBox(self)
+        # self.spin_artist.setObjectName("rate_artist")
+        # self.spin_artist.setRange(0, 100)
+        # self.spin_artist.setValue(80)
+        # self.spin_artist.setGeometry(self.width*0.85, self.height*0.65, self.width*0.07, 30)
+        # self.spin_artist.valueChanged.connect(self.spinClicked)
+        # self.spin_artist.setToolTip(self.sentences["tips_rate_artist"])
 
         # Define the push button for start the process
         self.run = QPushButton(self.sentences["run"], self)
@@ -258,13 +258,13 @@ class MainWindow(QWidget):
 
         return updated_path
 
-    def spinClicked(self):
-        sender = self.sender()
+    # def spinClicked(self):
+    #     sender = self.sender()
 
-        if sender.objectName() == "rate_artist":
-            self.status.showMessage(self.sentences["rate_artist"].replace(":", "") + self.sentences["changed"])
-        elif sender.objectName() == "rate_title":
-            self.status.showMessage(self.sentences["rate_title"].replace(":", "") + self.sentences["changed"])
+        # if sender.objectName() == "rate_artist":
+        #     self.status.showMessage(self.sentences["rate_artist"].replace(":", "") + self.sentences["changed"])
+        # elif sender.objectName() == "rate_title":
+        #     self.status.showMessage(self.sentences["rate_title"].replace(":", "") + self.sentences["changed"])
 
     def checkClicked(self):
         sender = self.sender()
@@ -282,11 +282,11 @@ class MainWindow(QWidget):
             else:
                 self.status.showMessage(self.generate_only.text() + self.sentences["disable"])
         
-        elif sender.objectName() == "dup":
-            if self.duplication.checkState():
-                self.status.showMessage(self.duplication.text() + self.sentences["enable"])
-            else:
-                self.status.showMessage(self.duplication.text() + self.sentences["disable"])
+        # elif sender.objectName() == "dup":
+        #     if self.duplication.checkState():
+        #         self.status.showMessage(self.duplication.text() + self.sentences["enable"])
+        #     else:
+        #         self.status.showMessage(self.duplication.text() + self.sentences["disable"])
 
         elif sender.objectName() == "anime":
             if self.check_anime.checkState():
@@ -366,7 +366,7 @@ class MainWindow(QWidget):
         self.check_game.setEnabled(state)
         self.check_sf.setEnabled(state)
         self.generate_only.setEnabled(state)
-        self.duplication.setEnabled(state)
+        # self.duplication.setEnabled(state)
         self.keyword.setEnabled(state)
         self.line_keyword.setEnabled(state)
 
@@ -378,8 +378,8 @@ class MainWindow(QWidget):
         self.line_playlist.setEnabled(state)
         self.line_library.setEnabled(state)
         
-        self.spin_artist.setEnabled(state)
-        self.spin_title.setEnabled(state)
+        # self.spin_artist.setEnabled(state)
+        # self.spin_title.setEnabled(state)
 
         return 
 
@@ -417,9 +417,9 @@ class MainWindow(QWidget):
         self.apg.generatePlaylist(self.line_playlist.text(), 
                                 1 if self.keyword.checkState() else 0, 
                                 self.line_keyword.text() if self.keyword.checkState() else "", 
-                                float(self.spin_title.text())/100, 
-                                float(self.spin_artist.text())/100,
-                                self.duplication.checkState(),
+                                # float(self.spin_title.text())/100, 
+                                # float(self.spin_artist.text())/100,
+                                # self.duplication.checkState(),
                                 check_category)
 
         self.status.showMessage(self.sentences["make_fin"])
