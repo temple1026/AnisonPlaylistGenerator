@@ -291,10 +291,11 @@ class MainWindow(QWidget):
 
                 self.thread.setDaemon(True)
                 self.thread.start()
-                
+
                 self.lockInput(state=False)
                 self.stop.setEnabled(True)
                 self.run.setEnabled(False)
+
 
         elif sender.objectName() == "stop":
             self.lockInput(state=True)
@@ -354,8 +355,8 @@ class MainWindow(QWidget):
             self.status.showMessage(self.sentences["make_library"])
             self.apg.makeLibrary(self.line_library.text())
 
-            if os.path.exists('artist_list.txt'):
-                self.apg.outputArtist()
+            # if os.path.exists('artist_list.txt'):
+            #     self.apg.outputArtist()
 
         self.status.showMessage(self.sentences["make_playlist"])
         check_category = {"anison":self.check_anime.checkState(), "game":self.check_game.checkState(), "sf":self.check_sf.checkState()}
@@ -365,6 +366,8 @@ class MainWindow(QWidget):
                                 self.line_keyword.text() if self.keyword.checkState() else "", 
                                 check_category)
 
+        
+        QMessageBox.information(None, "hoge", "hogehoge", QMessageBox.Ok)
         self.status.showMessage(self.sentences["make_fin"])
         self.stop.setEnabled(False)
         self.run.setEnabled(True) 

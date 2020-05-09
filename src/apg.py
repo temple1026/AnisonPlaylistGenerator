@@ -14,7 +14,7 @@ from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4
 from tqdm import tqdm
 
-from .common import trim
+from .common import trim, trim_reverse
 from .config import Config
 
 class APG():
@@ -42,28 +42,26 @@ class APG():
     def getRun(self):
         return self.run 
 
-    def initDatabase(self):
-        commands = [
-            "CREATE TABLE IF NOT EXISTS animes(id_anime INTEGER PRIMARY KEY, name_anime UNIQUE, id_class, id_category)", 
-            "CREATE TABLE IF NOT EXISTS relation_songs(id_anime, id_song, num_order, id_type, PRIMARY KEY(id_anime, id_song))",
-            "CREATE TABLE IF NOT EXISTS songs(id_song INTEGER PRIMARY KEY, name_song, id_artist, UNIQUE(name_song, id_artist))",
-            "CREATE TABLE IF NOT EXISTS artists(id_artist INTEGER PRIMARY KEY, name_artist UNIQUE)",
-            "CREATE TABLE IF NOT EXISTS classes(id_class INTEGER PRIMARY KEY, name_class UNIQUE)",
-            "CREATE TABLE IF NOT EXISTS types(id_type INTEGER PRIMARY KEY, name_type UNIQUE)",
-            "CREATE TABLE IF NOT EXISTS categories(id_category INTEGER PRIMARY KEY, name_category UNIQUE)",
-            "CREATE TABLE IF NOT EXISTS local_artists(id_local_artist INTEGER PRIMARY KEY, name_local_artist UNIQUE)",
-            "CREATE TABLE IF NOT EXISTS local_songs(id_local_song INTEGER PRIMARY KEY, id_local_artist, id_local_file, UNIQUE(id_local_artist, id_local_file))",
-            "CREATE TABLE IF NOT EXISTS local_files(id_local_file INTEGER PRIMARY KEY, name_song, length_file, path_file UNIQUE)",
-        ]
 
+    def initDatabase(self):
         with sqlite3.connect(self.path_database)as con:
             cursor = con.cursor()
-            
-            for command in commands:
-                cursor.execute(command)
+            cursor.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS animes(id_anime INTEGER PRIMARY KEY, name_anime UNIQUE, id_class, id_category);
+                CREATE TABLE IF NOT EXISTS relation_songs(id_anime, id_song, num_order, id_type, PRIMARY KEY(id_anime, id_song));
+                CREATE TABLE IF NOT EXISTS songs(id_song INTEGER PRIMARY KEY, name_song, id_artist, UNIQUE(name_song, id_artist));
+                CREATE TABLE IF NOT EXISTS artists(id_artist INTEGER PRIMARY KEY, name_artist UNIQUE);
+                CREATE TABLE IF NOT EXISTS classes(id_class INTEGER PRIMARY KEY, name_class UNIQUE);
+                CREATE TABLE IF NOT EXISTS types(id_type INTEGER PRIMARY KEY, name_type UNIQUE);
+                CREATE TABLE IF NOT EXISTS categories(id_category INTEGER PRIMARY KEY, name_category UNIQUE);
+                CREATE TABLE IF NOT EXISTS local_artists(id_local_artist INTEGER PRIMARY KEY, name_local_artist UNIQUE);
+                CREATE TABLE IF NOT EXISTS local_songs(id_local_song INTEGER PRIMARY KEY, id_local_artist, id_local_file, UNIQUE(id_local_artist, id_local_file));
+                CREATE TABLE IF NOT EXISTS local_files(id_local_file INTEGER PRIMARY KEY, name_song, length_file, path_file UNIQUE);
+                """
+            )
             con.commit()
 
-            
 
     def makeAnisonDatabase(self, path_data):
         data_name = ["anison.csv", "game.csv", "sf.csv"]
@@ -111,6 +109,7 @@ class APG():
 
             self.prog_db = 0
 
+
     def getMusicInfo(self, path):
         """
         Decode music file.
@@ -138,16 +137,6 @@ class APG():
         return audio, artist, title, length
 
 
-    def outputArtist(self):
-        with open('artist_list.txt', 'w', encoding='utf-8') as writer, sqlite3.connect(self.path_database) as con:
-            cursor = con.cursor()
-            cursor.execute('SELECT DISTINCT artist FROM library')
-            artist_list = cursor.fetchall()
-            
-            for artist in artist_list:
-                writer.writelines(artist[0] + "\n")
-
-
     def makeLibrary(self, path_music):
         music_files = glob.glob(path_music + "/**", recursive=True)
 
@@ -173,14 +162,8 @@ class APG():
 
             con.commit()
 
-    def getInfoDB(self, command, cursor):
-        cursor.execute(command)
-        return cursor.fetchall()
 
-        
-    def generatePlaylist(self, path_playlist, use_key=0, keyword="", # th_title=0.55, th_artist=0.8, 
-                         # duplication=False, 
-                         check_categories={"anison":True, "game":True, "sf":True}):
+    def generatePlaylist(self, path_playlist, use_key=0, keyword="", check_categories={"anison":True, "game":True, "sf":True}):
         """
         Generate playlist from database.
         """
@@ -222,11 +205,11 @@ class APG():
                                 SELECT target_anime.name_anime, relation_songs.id_song
                                     FROM relation_songs
                                     INNER JOIN (
-                                        -- 番組名の取得
+                                        -- カテゴリIDに対応した番組名の取得
                                         SELECT animes.id_anime, animes.name_anime
                                         FROM animes
                                         INNER JOIN (
-                                            -- カテゴリIDに応じて番組を取得
+                                            -- ユーザが選択したカテゴリIDに応じて番組を取得
                                             SELECT id_category 
                                             FROM categories 
                                             WHERE """ + target_category + """
@@ -239,9 +222,11 @@ class APG():
                 DELETE FROM anison WHERE name_artist = '' OR name_local_artist = '';
 
                 CREATE TEMPORARY TABLE files AS 
+                    -- ローカルアーティストに対応するファイル情報を取得
                     SELECT target_files.name_local_artist, local_files.name_song, local_files.length_file, local_files.path_file
                     FROM local_files
                     INNER JOIN(
+                        -- アニソンアーティストに対応するローカルアーティスト名とアーティストのファイルを取得
                         SELECT target_artists.name_local_artist, target_artists.id_local_file
                         FROM (SELECT name_local_artist FROM anison) AS anison_artists
                         INNER JOIN(
@@ -256,10 +241,11 @@ class APG():
             self.prog_playlist = 70
             lines = cursor.execute("SELECT DISTINCT files.name_song, files.length_file, files.path_file, files.name_local_artist FROM files INNER JOIN anison ON ((files.name_song LIKE anison.name_song||'%') AND (files.name_local_artist = anison.name_local_artist))").fetchall()
 
-            lines = [["#EXTINF: " + str(int(line[1])) + ", " + line[0] + "\n" + line[2]] for line in lines]
+            lines = [["#EXTINF: " + str(int(line[1])) + ", " + trim_reverse(line[0]) + "\n" + line[2]] for line in lines]
             pl.writelines('#EXTM3U \n')
             pl.writelines("\n".join([line[0] for line in lines]))
             self.prog_playlist = 100
+
 
 def run(path_config='./config.ini'):
 
@@ -282,6 +268,7 @@ def run(path_config='./config.ini'):
 
     print("Making playlist. (3/3)")
     gen.generatePlaylist(path_playlist)
-    
+
+
 if __name__ == '__main__':
     run()

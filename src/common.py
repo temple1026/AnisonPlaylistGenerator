@@ -1,7 +1,11 @@
 import mojimoji as moji
 
-
 def trim(name):
-    name = moji.zen_to_han(name)
-    name = name.replace("\n", "").replace('\'', '_').replace(" ", "").replace("\x00", "").replace("\"", "")
-    return name.lower()
+    name = name.replace("\n", "").replace('\'', '\'\'').replace(" ", " ").replace("\x00", "").replace("\"", "")
+    return name
+
+def trim_reverse(name):
+    while "\'\'" in name:
+        name = name.replace("\'\'", "\'")
+
+    return name
