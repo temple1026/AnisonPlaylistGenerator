@@ -8,3 +8,4 @@ playlist
 build/
 dist/
 *.spec
+logs/

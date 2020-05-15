@@ -29,12 +29,14 @@ class SubProgress(QThread):
 
 
 class MainWindow(QWidget):
-    def __init__(self, parent=None, path_config='config.ini', path_style='./styles/style.qss'):
+    def __init__(self, parent=None, path_config='config.ini', path_style='./styles/style.qss', logger=None):
         super(MainWindow, self).__init__(parent)
         self.path_config = path_config
         self.config = Config(self.path_config)
         self.settings = self.config.getConfig()
+        self.logger = logger
         self.drawInitialMenu(path_style)
+
 
     def drawInitialMenu(self, path_style='./styles/style.qss'):
         self.path_to_data = self.settings.get('path', 'data')
@@ -70,7 +72,7 @@ class MainWindow(QWidget):
         else:
             self.sentences = LANG_JA
 
-        self.apg = APG(self.path_to_database)
+        self.apg = APG(self.path_to_database, self.logger)
         
         self.width = int(self.settings.get('screen', 'width'))
         self.height = int(self.settings.get('screen', 'height'))
@@ -272,6 +274,8 @@ class MainWindow(QWidget):
             self.path_to_playlist = self.updateText(self.line_playlist, False, ".m3u")
 
         elif sender.objectName() == "run":
+            self.logger.info("Run")
+
             if not os.path.exists(self.path_to_database) and self.generate_only.checkState():
                 self.status.showMessage(self.sentences["warn_gen_playlist"])
             else:
@@ -291,7 +295,6 @@ class MainWindow(QWidget):
 
                 self.thread.setDaemon(True)
                 self.thread.start()
-
                 self.lockInput(state=False)
                 self.stop.setEnabled(True)
                 self.run.setEnabled(False)
@@ -349,15 +352,18 @@ class MainWindow(QWidget):
         self.thread_prog.start()
         
         if not self.generate_only.checkState():
+            self.logger.info("Make anison database.")
             self.status.showMessage(self.sentences["make_anison"])
             self.apg.makeAnisonDatabase(self.line_data.text())
 
+            self.logger.info("Make library.")
             self.status.showMessage(self.sentences["make_library"])
             self.apg.makeLibrary(self.line_library.text())
 
             # if os.path.exists('artist_list.txt'):
             #     self.apg.outputArtist()
 
+        self.logger.info("Start making the playlist.")
         self.status.showMessage(self.sentences["make_playlist"])
         check_category = {"anison":self.check_anime.checkState(), "game":self.check_game.checkState(), "sf":self.check_sf.checkState()}
 
@@ -365,9 +371,8 @@ class MainWindow(QWidget):
                                 1 if self.keyword.checkState() else 0, 
                                 self.line_keyword.text() if self.keyword.checkState() else "", 
                                 check_category)
-
         
-        QMessageBox.information(None, "hoge", "hogehoge", QMessageBox.Ok)
+        self.logger.info("Finish making the playlist.")
         self.status.showMessage(self.sentences["make_fin"])
         self.stop.setEnabled(False)
         self.run.setEnabled(True) 
@@ -377,9 +382,9 @@ class MainWindow(QWidget):
         self.thread_prog.quit()
 
 
-def run(path_config='./config.ini', path_style='./styles/style.qss'):
+def run(path_config='./config.ini', path_style='./styles/style.qss', logger=None):
     app = QApplication(sys.argv)
-    main_window = MainWindow(path_config=path_config, path_style=path_style)
+    main_window = MainWindow(path_config=path_config, path_style=path_style, logger=logger)
     main_window.show()
     sys.exit(app.exec_())
 

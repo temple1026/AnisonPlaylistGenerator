@@ -18,10 +18,12 @@ from .common import trim, trim_reverse
 from .config import Config
 
 class APG():
-    def __init__(self, path_database):
+    def __init__(self, path_database, logger=None):
         super(APG, self).__init__()
+        self.logger = logger
         self.path_database = path_database
         self.reset()
+        self.initDatabase()
 
 
     def reset(self):
@@ -66,11 +68,6 @@ class APG():
     def makeAnisonDatabase(self, path_data):
         data_name = ["anison.csv", "game.csv", "sf.csv"]
         file_paths = [i for i in glob.glob(path_data + "/**", recursive=True) if os.path.splitext(i)[-1] == ".csv"]
-
-        if os.path.exists(self.path_database):
-            os.remove(self.path_database)
-
-        self.initDatabase()
 
         for file_path in file_paths:
             if not os.path.basename(file_path) in data_name:
@@ -142,7 +139,6 @@ class APG():
 
         with sqlite3.connect(self.path_database) as con:
             cursor = con.cursor()
-            self.initDatabase()
             for i, music_file in tqdm(enumerate(music_files)):
                 self.prog_music= int((i + 1)/len(music_files)*100)
 
@@ -150,7 +146,7 @@ class APG():
                     break
 
                 audio, artist, title, length = self.getMusicInfo(music_file)
-                
+
                 if audio != "":
                     cursor.execute("INSERT OR IGNORE INTO local_artists(name_local_artist) VALUES (?)", (trim(artist),))
                     id_local_artist =  cursor.execute("SELECT id_local_artist FROM local_artists WHERE name_local_artist = ?", (trim(artist),)).fetchall()[0][0]
@@ -159,7 +155,7 @@ class APG():
                     id_local_file = cursor.execute("SELECT id_local_file FROM local_files WHERE path_file = ? ", (music_file,)).fetchall()[0][0]
                     
                     cursor.execute("INSERT OR IGNORE INTO local_songs(id_local_artist, id_local_file) VALUES (?, ?)", (id_local_artist, id_local_file,)).lastrowid
-
+            
             con.commit()
 
 
@@ -247,7 +243,7 @@ class APG():
             self.prog_playlist = 100
 
 
-def run(path_config='./config.ini'):
+def run(path_config='./config.ini', logger=None):
 
     config = Config(path_config).getConfig()
 
@@ -258,7 +254,7 @@ def run(path_config='./config.ini'):
     
     print("Start.")
     print(path_database)
-    gen = APG(path_database)
+    gen = APG(path_database, logger=logger)
     
     print("Adding anison information to the database. (1/3)")
     gen.makeAnisonDatabase(path_data)
