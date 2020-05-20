@@ -9,3 +9,5 @@ build/
 dist/
 *.spec
 logs/
+.vscode/
+env/
