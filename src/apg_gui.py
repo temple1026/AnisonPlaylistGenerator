@@ -3,11 +3,11 @@ import sys
 import threading
 import time
 
-from PyQt5.QtCore import QRect, QThread, pyqtSignal
+from PyQt5.QtCore import QRect, QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QColor, QPainter
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog, QLabel,
                              QLineEdit, QProgressBar, QPushButton, QSpinBox,
-                             QStatusBar, QWidget, QMessageBox)
+                             QStatusBar, QWidget, QMessageBox, QCompleter)
 
 from .apg import APG
 from .config import Config
@@ -123,6 +123,9 @@ class MainWindow(QWidget):
         self.line_keyword.setEnabled(False)
         self.line_keyword.setToolTip(self.sentences["tips_line_keyword"])
 
+        self.completer = None
+        self.updateCandidate()
+
         self.label_category = QLabel(self.sentences["category"], self)
         self.label_category.setGeometry(self.width*0.1, self.height*0.47, self.width*0.2, 30)
 
@@ -211,6 +214,12 @@ class MainWindow(QWidget):
         self.painter.drawRoundedRect(rect, 20.0, 20.0)
         self.painter.end()
 
+    def updateCandidate(self):
+        self.completer = QCompleter(self.apg.getCandidate(target="anime"), self)
+        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.completer.popup().setStyleSheet("background-color:#3c3c3c; color:#cccccc")
+        self.line_keyword.setCompleter(self.completer)
+
     def updateText(self, var, folder=True, ext=".m3u"):
         updated_path = ""
 
@@ -298,7 +307,7 @@ class MainWindow(QWidget):
                 self.lockInput(state=False)
                 self.stop.setEnabled(True)
                 self.run.setEnabled(False)
-
+                self.updateCandidate()
 
         elif sender.objectName() == "stop":
             self.lockInput(state=True)

@@ -30,7 +30,7 @@ class APG():
         self.prog_db = 0
         self.prog_music = 0
         self.prog_playlist = 0
-        self.run = True
+        self.ready = True
 
 
     def getProgress(self):
@@ -38,11 +38,11 @@ class APG():
 
 
     def stop(self):
-        self.run = False
+        self.ready = False
 
 
     def getRun(self):
-        return self.run 
+        return self.ready 
 
 
     def initDatabase(self):
@@ -64,6 +64,19 @@ class APG():
             )
             con.commit()
 
+    def getCandidate(self, target):
+        targets = []
+        if target == "anime":
+            sql = "SELECT name_anime FROM animes"
+        elif target == "artist":
+            sql = "SELECT name_artist FROM artists"
+
+        with sqlite3.connect(self.path_database)as con:
+            cursor = con.cursor()
+            cursor.execute(sql)
+            targets = cursor.fetchall()
+
+        return [t[0] for t in targets]
 
     def makeAnisonDatabase(self, path_data):
         data_name = ["anison.csv", "game.csv", "sf.csv"]
@@ -142,7 +155,7 @@ class APG():
             for i, music_file in tqdm(enumerate(music_files)):
                 self.prog_music= int((i + 1)/len(music_files)*100)
 
-                if not self.run:
+                if not self.ready:
                     break
 
                 audio, artist, title, length = self.getMusicInfo(music_file)
