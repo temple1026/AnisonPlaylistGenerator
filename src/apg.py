@@ -17,6 +17,8 @@ from tqdm import tqdm
 from .common import trim, trim_reverse
 from .config import Config
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 class APG():
     def __init__(self, path_database, logger=None):
         super(APG, self).__init__()
@@ -143,29 +145,47 @@ class APG():
             artist = trim(audio.get('\xa9ART', [""])[0])
             title = trim(audio.get('\xa9nam', [""])[0])
             length = audio.info.length
-        
+
         return audio, artist, title, length
 
+    def getMusics(self, path_musics):
+        list_musics = []
+        for path_music in path_musics:
+            audio, artist, title, length = self.getMusicInfo(path_music)
+            list_musics.append([audio, artist, title, length, path_music])
 
-    def makeLibrary(self, path_music):
-        music_files = glob.glob(path_music + "/**", recursive=True)
+        return list_musics
+
+    def makeLibrary(self, path_library):
+
+        music_files = glob.glob(path_library + "/**", recursive=True)
+        max_workers = 8
+        results = []
+        length_per_worker = round(len(music_files)/max_workers + 0.5)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            threads = {executor.submit(self.getMusics, music_files[idx*length_per_worker:(idx+1)*length_per_worker]) : idx for idx in range(max_workers)}
+            print(f"thread_0 to thread_{max_workers} are running.")
+
+            for future in as_completed(threads):
+                results.extend(future.result())
 
         with sqlite3.connect(self.path_database) as con:
             cursor = con.cursor()
-            for i, music_file in tqdm(enumerate(music_files)):
-                self.prog_music= int((i + 1)/len(music_files)*100)
+            for i, result in tqdm(enumerate(results)):
+                self.prog_music= int((i + 1)/len(results)*100)
 
                 if not self.ready:
                     break
 
-                audio, artist, title, length = self.getMusicInfo(music_file)
+                audio, artist, title, length, path_music = result
 
                 if audio != "":
                     cursor.execute("INSERT OR IGNORE INTO local_artists(name_local_artist) VALUES (?)", (trim(artist),))
                     id_local_artist =  cursor.execute("SELECT id_local_artist FROM local_artists WHERE name_local_artist = ?", (trim(artist),)).fetchall()[0][0]
                     
-                    cursor.execute("INSERT OR IGNORE INTO local_files(name_song, length_file, path_file) VALUES (?, ?, ?)", (trim(title), length, music_file, )).lastrowid
-                    id_local_file = cursor.execute("SELECT id_local_file FROM local_files WHERE path_file = ? ", (music_file,)).fetchall()[0][0]
+                    cursor.execute("INSERT OR IGNORE INTO local_files(name_song, length_file, path_file) VALUES (?, ?, ?)", (trim(title), length, path_music, )).lastrowid
+                    id_local_file = cursor.execute("SELECT id_local_file FROM local_files WHERE path_file = ? ", (path_music,)).fetchall()[0][0]
                     
                     cursor.execute("INSERT OR IGNORE INTO local_songs(id_local_artist, id_local_file) VALUES (?, ?)", (id_local_artist, id_local_file,)).lastrowid
             
@@ -269,14 +289,14 @@ def run(path_config='./config.ini', logger=None):
     print(path_database)
     gen = APG(path_database, logger=logger)
     
-    print("Adding anison information to the database. (1/3)")
-    gen.makeAnisonDatabase(path_data)
+    # print("Adding anison information to the database. (1/3)")
+    # gen.makeAnisonDatabase(path_data)
 
     print("Adding lirary information to the database. (2/3)")
     gen.makeLibrary(path_music)
 
-    print("Making playlist. (3/3)")
-    gen.generatePlaylist(path_playlist)
+    # print("Making playlist. (3/3)")
+    # gen.generatePlaylist(path_playlist)
 
 
 if __name__ == '__main__':
