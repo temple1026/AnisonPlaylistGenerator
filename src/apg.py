@@ -1,12 +1,7 @@
-import argparse
-import csv
-import difflib
 import glob
 import os
-import re
 import sqlite3
-import threading
-from itertools import chain
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from mutagen.easyid3 import EasyID3
 from mutagen.flac import FLAC
@@ -17,7 +12,6 @@ from tqdm import tqdm
 from .common import trim, trim_reverse
 from .config import Config
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class APG():
     def __init__(self, path_database, logger=None):
