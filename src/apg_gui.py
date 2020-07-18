@@ -369,9 +369,6 @@ class MainWindow(QWidget):
             self.status.showMessage(self.sentences["make_library"])
             self.apg.makeLibrary(self.line_library.text())
 
-            # if os.path.exists('artist_list.txt'):
-            #     self.apg.outputArtist()
-
         self.logger.info("Start making the playlist.")
         self.status.showMessage(self.sentences["make_playlist"])
         check_category = {"anison":self.check_anime.checkState(), "game":self.check_game.checkState(), "sf":self.check_sf.checkState()}
@@ -392,11 +389,13 @@ class MainWindow(QWidget):
 
 
 def run(path_config='./config.ini', path_style='./styles/style.qss', logger=None):
-    app = QApplication(sys.argv)
-    main_window = MainWindow(path_config=path_config, path_style=path_style, logger=logger)
-    main_window.show()
-    sys.exit(app.exec_())
-
+    try:
+        app = QApplication(sys.argv)
+        main_window = MainWindow(path_config=path_config, path_style=path_style, logger=logger)
+        main_window.show()
+        sys.exit(app.exec_())
+    except Exception as e:
+        print(e)
 
 if __name__ == '__main__':
     run(path_config='./config.ini', path_style='./styles/style.qss')

@@ -48,6 +48,9 @@ class APG():
 
 
     def initDatabase(self):
+        """
+        データベースの初期化を行う関数
+        """
         with sqlite3.connect(self.path_database)as con:
             cursor = con.cursor()
             cursor.executescript(
@@ -67,6 +70,10 @@ class APG():
             con.commit()
 
     def getCandidate(self, target):
+        """
+        データベースの中のアニメやアーティスト名を取得する関数
+        """
+
         targets = []
         if target == "anime":
             sql = "SELECT name_anime FROM animes"
@@ -81,6 +88,10 @@ class APG():
         return [t[0] for t in targets]
 
     def makeAnisonDatabase(self, path_data):
+        """
+        csvファイルからアニソンのデータベースを作成する関数
+        """
+
         data_name = ["anison.csv", "game.csv", "sf.csv"]
         file_paths = [i for i in glob.glob(path_data + "/**", recursive=True) if os.path.splitext(i)[-1] == ".csv"]
 
@@ -124,10 +135,10 @@ class APG():
 
     def getMusicInfo(self, path):
         """
-        Decode music file.
+        パスから音楽ファイルの取得する関数
         """
-        length, audio, title, artist = 0, "", "", ""
-        
+        length, audio, title, artist, target = 0, "", "", "", True
+
         if path.endswith(".flac"):
             audio = FLAC(path)
             artist = trim(audio.get('artist', [""])[0])
@@ -145,42 +156,61 @@ class APG():
             artist = trim(audio.get('\xa9ART', [""])[0])
             title = trim(audio.get('\xa9nam', [""])[0])
             length = audio.info.length
+        else:
+            target = False
 
-        return audio, artist, title, length
+        return target, artist, title, length
 
     def getMusics(self, path_musics):
+        """
+        複数のパスから音楽ファイルの情報を取得する関数
+        """
         list_musics = []
         for path_music in path_musics:
-            audio, artist, title, length = self.getMusicInfo(path_music)
-            list_musics.append([audio, artist, title, length, path_music])
+            *info, = self.getMusicInfo(path_music)
+            list_musics.append([*info, path_music])
 
         return list_musics
 
-    def makeLibrary(self, path_library):
-
+    def makeLibrary(self, path_library, max_workers=8):
+        """
+        音楽ライブラリを作成する関数
+        """
+        # 指定されたフォルダ内のパスを再帰的に取得
         music_files = glob.glob(path_library + "/**", recursive=True)
-        max_workers = 8
+
+        # 1スレッドあたりのパスの数を計算
+        num_per_worker = round(len(music_files)/max_workers + 0.5)
+        
         results = []
-        length_per_worker = round(len(music_files)/max_workers + 0.5)
-
+        
+        # マルチスレッドによる処理開始
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            threads = {executor.submit(self.getMusics, music_files[idx*length_per_worker:(idx+1)*length_per_worker]) : idx for idx in range(max_workers)}
-            print(f"thread_0 to thread_{max_workers} are running.")
+            # パスをmax_workersで分割し音楽情報を取得
+            threads = {executor.submit(self.getMusics, music_files[idx*num_per_worker:(idx+1)*num_per_worker]) : idx for idx in range(max_workers)}
+            self.logger.info((f"thread_0 to thread_{max_workers} are running."))
+            self.prog_music = 10
 
-            for future in as_completed(threads):
-                results.extend(future.result())
+            for idx, thread in enumerate(as_completed(threads)):
+                # 各スレッドが取得した音楽情報を結合
+                results.extend(thread.result())
+                self.logger.info((f"thread_{idx} was done."))
+                self.prog_music += 10 // max_workers
 
+        # 取得した音楽情報をデータベースに登録する処理
         with sqlite3.connect(self.path_database) as con:
             cursor = con.cursor()
+            self.logger.info("Registration started.")
             for i, result in tqdm(enumerate(results)):
-                self.prog_music= int((i + 1)/len(results)*100)
+                self.prog_music = int((i + 1)/len(results)*80) + 20
 
-                if not self.ready:
+                if not self.ready:            
+                    self.logger.info("Registration canceled")
                     break
 
-                audio, artist, title, length, path_music = result
+                target, artist, title, length, path_music = result
 
-                if audio != "":
+                if target:
                     cursor.execute("INSERT OR IGNORE INTO local_artists(name_local_artist) VALUES (?)", (trim(artist),))
                     id_local_artist =  cursor.execute("SELECT id_local_artist FROM local_artists WHERE name_local_artist = ?", (trim(artist),)).fetchall()[0][0]
                     
@@ -189,29 +219,32 @@ class APG():
                     
                     cursor.execute("INSERT OR IGNORE INTO local_songs(id_local_artist, id_local_file) VALUES (?, ?)", (id_local_artist, id_local_file,)).lastrowid
             
+            self.logger.info("Registration completed.")
             con.commit()
 
 
     def generatePlaylist(self, path_playlist, use_key=0, keyword="", check_categories={"anison":True, "game":True, "sf":True}):
         """
-        Generate playlist from database.
+        プレイリストを生成する関数
         """
-        with open(path_playlist, 'w', encoding='utf-16') as pl, sqlite3.connect(self.path_database) as con:
-            lines = []
+        
+        categories = ["anison", "game", "sf"]
+        target_category = ""
+        
+        # 対象のカテゴリに応じてSQL文をつくる処理
+        for category in categories:
+            if not check_categories[category]:
+                continue
+            target_category += ("(name_category == \'" + category + "\') OR ")
+
+        if target_category == "":
+            return
+
+        target_category = target_category[:target_category.rfind(" OR ")]
+
+        # データベースから曲リストを取得する処理
+        with sqlite3.connect(self.path_database) as con:
             cursor = con.cursor()
-
-            categories = ["anison", "game", "sf"]
-            target_category = ""
-            
-            for category in categories:
-                if not check_categories[category]:
-                    continue
-                target_category += ("(name_category == \'" + category + "\') OR ")
-
-            if target_category == "":
-                return
-
-            target_category = target_category[:target_category.rfind(" OR ")]
             self.prog_playlist = 10
 
             phrase = {1:"AND (target_anime.name_anime LIKE \'%" + trim(keyword) + "%\')", 0:""}
@@ -269,8 +302,10 @@ class APG():
             )
             self.prog_playlist = 70
             lines = cursor.execute("SELECT DISTINCT files.name_song, files.length_file, files.path_file, files.name_local_artist FROM files INNER JOIN anison ON ((files.name_song LIKE anison.name_song||'%') AND (files.name_local_artist = anison.name_local_artist))").fetchall()
-
             lines = [["#EXTINF: " + str(int(line[1])) + ", " + trim_reverse(line[0]) + "\n" + line[2]] for line in lines]
+
+        # 取得した音楽情報からプレイリストを出力する処理
+        with open(path_playlist, 'w', encoding='utf-16') as pl:
             pl.writelines('#EXTM3U \n')
             pl.writelines("\n".join([line[0] for line in lines]))
             self.prog_playlist = 100
@@ -289,14 +324,14 @@ def run(path_config='./config.ini', logger=None):
     print(path_database)
     gen = APG(path_database, logger=logger)
     
-    # print("Adding anison information to the database. (1/3)")
-    # gen.makeAnisonDatabase(path_data)
+    print("Adding anison information to the database. (1/3)")
+    gen.makeAnisonDatabase(path_data)
 
     print("Adding lirary information to the database. (2/3)")
     gen.makeLibrary(path_music)
 
-    # print("Making playlist. (3/3)")
-    # gen.generatePlaylist(path_playlist)
+    print("Making playlist. (3/3)")
+    gen.generatePlaylist(path_playlist)
 
 
 if __name__ == '__main__':
