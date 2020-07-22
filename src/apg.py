@@ -166,13 +166,12 @@ class APG():
 
         return list_musics
 
-    def makeLibrary(self, path_library, max_workers=8):
+    def makeLibrary(self, path_library, max_workers=16):
         """
         音楽ライブラリを作成する関数
         """
         # 指定されたフォルダ内のパスを再帰的に取得
-        music_files = glob.glob(path_library + "/**", recursive=True)
-
+        music_files = glob.glob(os.path.join(path_library, "**"), recursive=True)
         # 1スレッドあたりのパスの数を計算
         num_per_worker = round(len(music_files)/max_workers + 0.5)
         

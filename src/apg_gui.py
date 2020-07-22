@@ -123,8 +123,12 @@ class MainWindow(QWidget):
         self.line_keyword.setEnabled(False)
         self.line_keyword.setToolTip(self.sentences["tips_line_keyword"])
 
-        self.completer = None
-        self.updateCandidate()
+        self.completer = QCompleter(self.apg.getCandidate(target="anime"), self)
+        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.completer.popup().setStyleSheet("background-color:#3c3c3c; color:#cccccc")
+        self.line_keyword.setCompleter(self.completer)
+        self.logger.info("Completer was called.")
 
         self.label_category = QLabel(self.sentences["category"], self)
         self.label_category.setGeometry(self.width*0.1, self.height*0.47, self.width*0.2, 30)
@@ -155,14 +159,6 @@ class MainWindow(QWidget):
         self.keyword.setGeometry(self.width*0.10, self.height*0.55, self.width*0.15, 30)
         self.keyword.clicked.connect(self.checkClicked)
         self.keyword.setToolTip(self.sentences["tips_keyword"])
-        # self.keyword.setToolTip("")
-
-        self.generate_only = QCheckBox(self.sentences["gen_playlist_only"],self)
-        self.generate_only.setObjectName("gen")
-        self.generate_only.toggle()
-        self.generate_only.setGeometry(self.width*0.10, self.height*0.64, self.width*0.4, 30)
-        self.generate_only.clicked.connect(self.checkClicked)
-        self.generate_only.setToolTip(self.sentences["tips_gen_only"])
 
         # Define the push button for start the process
         self.run = QPushButton(self.sentences["run"], self)
@@ -172,6 +168,15 @@ class MainWindow(QWidget):
         self.run.clicked.connect(self.buttonClicked) 
         self.run.setEnabled(True)
         self.run.setToolTip(self.sentences["tips_run"])
+
+        # Define the push button for making the database
+        self.db_update = QPushButton(self.sentences["db_update"], self)
+        self.db_update.setObjectName('db_update')
+    
+        self.db_update.setGeometry(self.width*0.75, self.height*0.65, self.width*0.15, 30)
+        self.db_update.clicked.connect(self.buttonClicked) 
+        self.db_update.setEnabled(True)
+        self.db_update.setToolTip(self.sentences["tips_database"])
 
         # Define the push button for stop the process
         self.stop = QPushButton(self.sentences["stop"], self)
@@ -214,12 +219,6 @@ class MainWindow(QWidget):
         self.painter.drawRoundedRect(rect, 20.0, 20.0)
         self.painter.end()
 
-    def updateCandidate(self):
-        self.completer = QCompleter(self.apg.getCandidate(target="anime"), self)
-        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self.completer.popup().setStyleSheet("background-color:#3c3c3c; color:#cccccc")
-        self.line_keyword.setCompleter(self.completer)
-
     def updateText(self, var, folder=True, ext=".m3u"):
         updated_path = ""
 
@@ -245,12 +244,6 @@ class MainWindow(QWidget):
                 self.status.showMessage(sender.text().replace(":", "") + self.sentences["disable"])
                 self.line_keyword.setEnabled(False)
 
-        elif sender.objectName() == "gen":
-            if self.generate_only.checkState():
-                self.status.showMessage(self.generate_only.text() + self.sentences["enable"])
-            else:
-                self.status.showMessage(self.generate_only.text() + self.sentences["disable"])
-        
         elif sender.objectName() == "anime":
             if self.check_anime.checkState():
                 self.status.showMessage(self.check_anime.text() + self.sentences["enable"])
@@ -283,52 +276,49 @@ class MainWindow(QWidget):
             self.path_to_playlist = self.updateText(self.line_playlist, False, ".m3u")
 
         elif sender.objectName() == "run":
-            self.logger.info("Run")
+            self.logger.info("Started to making the playlist.")
+            self.thread = threading.Thread(target=self.generatePlaylist)
+            
+            # Check the extension
+            if os.path.splitext(self.line_playlist.text())[1] != ".m3u":
+                self.status.showMessage(self.sentences["warn_ext"])
+                return 
+            
+            if os.path.exists(self.line_playlist.text()):
+                react = QMessageBox.warning(None, self.sentences["warn_overwrite"] , self.sentences["message_overwrite"], QMessageBox.Yes, QMessageBox.No)
 
-            if not os.path.exists(self.path_to_database) and self.generate_only.checkState():
-                self.status.showMessage(self.sentences["warn_gen_playlist"])
-            else:
-                self.thread = threading.Thread(target=self.runAll)
+                if react == QMessageBox.No:
+                    return
 
-                if os.path.splitext(self.line_playlist.text())[1] != ".m3u":
-                    self.status.showMessage(self.sentences["warn_ext"])
-                    self.lockInput(state=True)
-                    return 
-                
-                if os.path.exists(self.line_playlist.text()):
-                    react = QMessageBox.warning(None, self.sentences["warn_overwrite"] , self.sentences["message_overwrite"], QMessageBox.Yes, QMessageBox.No)
+            self.changeState(stopped=False)
+            self.thread.setDaemon(True)
+            self.thread.start()
 
-                    if react == QMessageBox.No:
-                        self.lockInput(state=True)
-                        return
+        elif sender.objectName() == "db_update":
+            self.logger.info("Started to updating the database.")
+            self.thread = threading.Thread(target=self.updateDB)
+            
+            react = QMessageBox.warning(None, self.sentences["warn_overwrite"] , "データベースを更新しますか?", QMessageBox.Yes, QMessageBox.No)
 
-                self.thread.setDaemon(True)
-                self.thread.start()
-                self.lockInput(state=False)
-                self.stop.setEnabled(True)
-                self.run.setEnabled(False)
-                self.updateCandidate()
+            if react == QMessageBox.No:
+                return
+
+            self.changeState(stopped=False)
+            self.thread.setDaemon(True)
+            self.thread.start()
 
         elif sender.objectName() == "stop":
-            self.lockInput(state=True)
-            self.stop.setEnabled(False)
-            self.run.setEnabled(True) 
-            self.apg.stop()
-
             self.thread.join()
-
             self.thread_prog.wait()
             self.thread_prog.quit()
             self.status.showMessage(self.sentences["warn_stop"])
-            self.apg.reset()
+            self.changeState(stopped=True)
 
     
     def lockInput(self, state=True):
-        
         self.check_anime.setEnabled(state)
         self.check_game.setEnabled(state)
         self.check_sf.setEnabled(state)
-        self.generate_only.setEnabled(state)
         self.keyword.setEnabled(state)
         self.line_keyword.setEnabled(state)
 
@@ -343,7 +333,6 @@ class MainWindow(QWidget):
         return 
 
     def updateProgress(self, signal):
-
         db, library, playlist = self.apg.getProgress()
         value = 0
 
@@ -357,17 +346,8 @@ class MainWindow(QWidget):
         self.progress.setValue(value)
 
 
-    def runAll(self):
+    def generatePlaylist(self):
         self.thread_prog.start()
-        
-        if not self.generate_only.checkState():
-            self.logger.info("Make anison database.")
-            self.status.showMessage(self.sentences["make_anison"])
-            self.apg.makeAnisonDatabase(self.line_data.text())
-
-            self.logger.info("Make library.")
-            self.status.showMessage(self.sentences["make_library"])
-            self.apg.makeLibrary(self.line_library.text())
 
         self.logger.info("Start making the playlist.")
         self.status.showMessage(self.sentences["make_playlist"])
@@ -379,14 +359,33 @@ class MainWindow(QWidget):
                                 check_category)
         
         self.logger.info("Finish making the playlist.")
-        self.status.showMessage(self.sentences["make_fin"])
-        self.stop.setEnabled(False)
-        self.run.setEnabled(True) 
-        self.lockInput(state=True)
-        self.apg.reset()
+        self.status.showMessage(self.sentences["fin_making_playlist"])
         self.thread_prog.wait()
         self.thread_prog.quit()
+        self.changeState(stopped=True)
 
+    def updateDB(self):
+        self.thread_prog.start()
+        self.logger.info("Making anison database.")
+        self.status.showMessage(self.sentences["make_anison"])
+        self.apg.makeAnisonDatabase(self.line_data.text())
+
+        self.logger.info("Making library.")
+        self.status.showMessage(self.sentences["make_library"])
+        self.apg.makeLibrary(self.line_library.text())
+        self.thread_prog.wait()
+        self.thread_prog.quit()
+        self.changeState(stopped=True)  
+        self.completer.model().setStringList(self.apg.getCandidate(target="anime"))
+        self.status.showMessage(self.sentences["fin_updating_database"])
+
+        
+    def changeState(self, stopped=False):
+        self.stop.setEnabled(not stopped)
+        self.run.setEnabled(stopped)
+        self.db_update.setEnabled(stopped)
+        self.lockInput(state=stopped)
+        self.apg.reset()
 
 def run(path_config='./config.ini', path_style='./styles/style.qss', logger=None):
     try:
