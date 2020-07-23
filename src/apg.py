@@ -26,7 +26,7 @@ class APG():
         self.prog_db = 0
         self.prog_music = 0
         self.prog_playlist = 0
-        self.ready = True
+        self.running = False
 
 
     def getProgress(self):
@@ -34,11 +34,11 @@ class APG():
 
 
     def stop(self):
-        self.ready = False
+        self.running = False
 
 
     def getRun(self):
-        return self.ready 
+        return self.running 
 
 
     def initDatabase(self):
@@ -85,7 +85,6 @@ class APG():
         """
         csvファイルからアニソンのデータベースを作成する関数
         """
-
         data_name = ["anison.csv", "game.csv", "sf.csv"]
         file_paths = [i for i in glob.glob(path_data + "/**", recursive=True) if os.path.splitext(i)[-1] == ".csv"]
 
@@ -166,10 +165,12 @@ class APG():
 
         return list_musics
 
-    def makeLibrary(self, path_library, max_workers=16):
+    def makeLibrary(self, path_library, max_workers=8):
         """
         音楽ライブラリを作成する関数
         """
+        self.running = True
+
         # 指定されたフォルダ内のパスを再帰的に取得
         music_files = glob.glob(os.path.join(path_library, "**"), recursive=True)
         # 1スレッドあたりのパスの数を計算
@@ -197,9 +198,9 @@ class APG():
             for i, result in tqdm(enumerate(results)):
                 self.prog_music = int((i + 1)/len(results)*80) + 20
 
-                if not self.ready:            
+                if not self.running:            
                     self.logger.info("Registration canceled")
-                    break
+                    return
 
                 target, artist, title, length, path_music = result
 

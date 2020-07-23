@@ -32,7 +32,7 @@ LANG_JA = {
     "rate_artist":"歌手名の類似度 :",
     "run":"実行",
     "stop":"中止",
-    "db_update":"更新",
+    "db_update":"DB更新",
     "enable":"を有効にしました.",
     "disable":"を無効にしました.",
     "changed":"を変更しました.",

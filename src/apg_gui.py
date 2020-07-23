@@ -1,6 +1,5 @@
 import os
 import sys
-import threading
 import time
 
 from PyQt5.QtCore import QRect, QThread, pyqtSignal, Qt
@@ -15,6 +14,9 @@ from .sentence import LANG_ENG, LANG_JA
 
 
 class SubProgress(QThread):
+    """
+    プログレスバーの更新用のクラス
+    """
     signal = pyqtSignal(int)
     running = True
 
@@ -27,6 +29,58 @@ class SubProgress(QThread):
     def wait(self):
         self.running = False
 
+class UpdateDB(QThread):
+    """
+    データベースの更新をバックグラウンドで行うためのクラス
+    """
+    signal = pyqtSignal(str)
+    running = True
+
+    def __init__(self, parent=None, apg=APG("info.db"), path_data="", path_library=""):
+        super(UpdateDB, self).__init__()
+        self.apg = apg
+        self.path_data = path_data
+        self.path_library = path_library
+
+    def run(self):
+        if self.running:
+            self.signal.emit("アニソンデータの更新中．")
+            self.apg.makeAnisonDatabase(self.path_data)
+        
+        if self.running:
+            self.signal.emit("ライブラリの更新中．")
+            self.apg.makeLibrary(self.path_library)
+
+        self.signal.emit("")
+        return
+    
+    def wait(self):
+        self.apg.stop()
+        self.running = False
+
+class GenPlaylist(QThread):
+    """
+    プレイリストの作成をバックグラウンドで処理するためのクラス
+    """
+    signal = pyqtSignal(str)
+    running = True
+
+    def __init__(self, parent=None, apg=APG("info.db"), use_key=0, path_playlist="", keyword = "", check_categories={"anison":True, "game":True, "sf":True}):
+        super(GenPlaylist, self).__init__()
+        self.apg = apg
+        self.path_playlist = path_playlist
+        self.keyword = keyword
+        self.check_categories = check_categories
+        self.use_key = use_key
+
+    def run(self):
+        self.signal.emit("プレイリストの作成中．")
+        self.apg.generatePlaylist(self.path_playlist, self.use_key, self.keyword, self.check_categories)
+        self.signal.emit("")    
+        return
+    
+    def wait(self):
+        self.apg.stop()
 
 class MainWindow(QWidget):
     def __init__(self, parent=None, path_config='config.ini', path_style='./styles/style.qss', logger=None):
@@ -199,11 +253,13 @@ class MainWindow(QWidget):
         
         self.setWindowTitle('Anison Playlist Generator')
         self.setWindowTitle
-        self.stop_thread = threading.Event()
 
         self.thread_prog = SubProgress()
         self.thread_prog.signal.connect(self.updateProgress)
-    
+
+        self.thread_updateDB = None
+        self.thread_genPlaylist = None
+        
     def __del__(self):
         self.config.saveConfig(
             name=self.path_config, path_library=self.path_to_library, path_data=self.path_to_data, 
@@ -277,62 +333,127 @@ class MainWindow(QWidget):
 
         elif sender.objectName() == "run":
             self.logger.info("Started to making the playlist.")
-            self.thread = threading.Thread(target=self.generatePlaylist)
+
+            # 既に実行しているスレッドがある場合は処理を中止            
+            if self.checkThreadRunning():
+                self.logger.info("GenPlaylist: The previous thread is running.")
+                QMessageBox.warning(None, self.sentences["warn_overwrite"] , "直前の処理を中断しています．", QMessageBox.Ok)
+                return
             
-            # Check the extension
+            # ファイルの拡張子の確認
             if os.path.splitext(self.line_playlist.text())[1] != ".m3u":
                 self.status.showMessage(self.sentences["warn_ext"])
-                return 
-            
+                return
+
+            # プレイリストが存在するか確認
             if os.path.exists(self.line_playlist.text()):
                 react = QMessageBox.warning(None, self.sentences["warn_overwrite"] , self.sentences["message_overwrite"], QMessageBox.Yes, QMessageBox.No)
 
                 if react == QMessageBox.No:
+                    self.lockInput(enabled=True)
                     return
 
-            self.changeState(stopped=False)
-            self.thread.setDaemon(True)
-            self.thread.start()
+            # チェックボックスの状態の確認
+            check_categories = {"anison":self.check_anime.checkState(), "game":self.check_game.checkState(), "sf":self.check_sf.checkState()}
+
+            # プレイリスト作成用のスレッドの呼び出し
+            self.thread_genPlaylist = GenPlaylist(
+                                apg=self.apg,
+                                keyword=self.line_keyword.text() if self.keyword.checkState() else "",
+                                use_key=1 if self.keyword.checkState() else 0,
+                                path_playlist=self.line_playlist.text(),
+                                check_categories=check_categories)
+            self.thread_genPlaylist.signal.connect(self.generatePlaylist)
+
+            # マルチスレッドによる処理の開始
+            self.lockInput(enabled=False)
+            self.thread_prog.start()
+            self.thread_genPlaylist.start()
 
         elif sender.objectName() == "db_update":
             self.logger.info("Started to updating the database.")
-            self.thread = threading.Thread(target=self.updateDB)
+
+            # 既に実行しているスレッドがある場合は処理を中止 
+            if self.checkThreadRunning():
+                self.logger.info("UpdateDB: The previous thread is running.")
+                QMessageBox.warning(None, self.sentences["warn_overwrite"] , "直前の処理を中断中です", QMessageBox.Ok)
+                return
             
+            # データベース更新処理の確認
             react = QMessageBox.warning(None, self.sentences["warn_overwrite"] , "データベースを更新しますか?", QMessageBox.Yes, QMessageBox.No)
 
+            # Noなら処理を中止
             if react == QMessageBox.No:
+                self.lockInput(enabled=True)
                 return
-
-            self.changeState(stopped=False)
-            self.thread.setDaemon(True)
-            self.thread.start()
+            
+            # スレッドの実行準備
+            self.thread_updateDB = UpdateDB(apg=self.apg, path_data=self.line_data.text(), path_library=self.line_library.text())
+            self.thread_updateDB.signal.connect(self.updateDB)
+            
+            # ボタンなどの入力が出来ないようにする
+            self.lockInput(enabled=False)
+            
+            # マルチスレッドによる処理の開始
+            self.thread_prog.start()
+            self.thread_updateDB.start()
 
         elif sender.objectName() == "stop":
-            self.thread.join()
+            self.apg.stop()
+            self.apg.reset()
+
             self.thread_prog.wait()
             self.thread_prog.quit()
+            
+            if self.thread_updateDB != None:                  
+                self.thread_updateDB.wait()
+                self.thread_updateDB.quit()
+
+            elif self.thread_genPlaylist != None:
+                self.thread_genPlaylist.wait()
+                self.thread_genPlaylist.quit()
+                
             self.status.showMessage(self.sentences["warn_stop"])
-            self.changeState(stopped=True)
-
+            self.lockInput(enabled=True)
     
-    def lockInput(self, state=True):
-        self.check_anime.setEnabled(state)
-        self.check_game.setEnabled(state)
-        self.check_sf.setEnabled(state)
-        self.keyword.setEnabled(state)
-        self.line_keyword.setEnabled(state)
+    def checkThreadRunning(self):
+        """
+        マルチスレッド処理が行われているかを返す関数
+        """
+        check_updateDB = (self.thread_updateDB != None) and self.thread_updateDB.isRunning()
+        check_genPlaylist = (self.thread_genPlaylist != None) and self.thread_genPlaylist.isRunning()
+        
+        return check_updateDB or check_genPlaylist
 
-        self.button_data.setEnabled(state)
-        self.button_library.setEnabled(state)
-        self.button_playlist.setEnabled(state)
+    def lockInput(self, enabled=True):
+        """
+        ボタン入力などの有効/無効を切り替える関数
+        """
 
-        self.line_data.setEnabled(state)
-        self.line_playlist.setEnabled(state)
-        self.line_library.setEnabled(state)
+        self.stop.setEnabled(not enabled)
+        self.run.setEnabled(enabled)
+        self.db_update.setEnabled(enabled)
+
+        self.check_anime.setEnabled(enabled)
+        self.check_game.setEnabled(enabled)
+        self.check_sf.setEnabled(enabled)
+        self.keyword.setEnabled(enabled)
+        self.line_keyword.setEnabled(enabled)
+
+        self.button_data.setEnabled(enabled)
+        self.button_library.setEnabled(enabled)
+        self.button_playlist.setEnabled(enabled)
+
+        self.line_data.setEnabled(enabled)
+        self.line_playlist.setEnabled(enabled)
+        self.line_library.setEnabled(enabled)
         
         return 
 
     def updateProgress(self, signal):
+        """
+        プログレスバーの値を更新する関数
+        """
         db, library, playlist = self.apg.getProgress()
         value = 0
 
@@ -345,47 +466,58 @@ class MainWindow(QWidget):
         
         self.progress.setValue(value)
 
+    def resetProgress(self):
+        """
+        ProgressBarの値を0にする関数
+        """
+        self.progress.setValue(0)
 
-    def generatePlaylist(self):
-        self.thread_prog.start()
+    def generatePlaylist(self, signal):
+        """
+        GenPlaylistスレッド実行時に呼び出される関数
+        空白を受信したらスレッドを終了する
+        """
+        if signal != "":
+            self.status.showMessage(signal)
+        else:
+            self.apg.reset()
 
-        self.logger.info("Start making the playlist.")
-        self.status.showMessage(self.sentences["make_playlist"])
-        check_category = {"anison":self.check_anime.checkState(), "game":self.check_game.checkState(), "sf":self.check_sf.checkState()}
+            self.thread_genPlaylist.wait()
+            self.thread_genPlaylist.quit()
 
-        self.apg.generatePlaylist(self.line_playlist.text(), 
-                                1 if self.keyword.checkState() else 0, 
-                                self.line_keyword.text() if self.keyword.checkState() else "", 
-                                check_category)
-        
-        self.logger.info("Finish making the playlist.")
-        self.status.showMessage(self.sentences["fin_making_playlist"])
-        self.thread_prog.wait()
-        self.thread_prog.quit()
-        self.changeState(stopped=True)
+            self.thread_prog.wait()
+            self.thread_prog.quit()
 
-    def updateDB(self):
-        self.thread_prog.start()
-        self.logger.info("Making anison database.")
-        self.status.showMessage(self.sentences["make_anison"])
-        self.apg.makeAnisonDatabase(self.line_data.text())
+            self.resetProgress()
+            self.lockInput(enabled=True)
 
-        self.logger.info("Making library.")
-        self.status.showMessage(self.sentences["make_library"])
-        self.apg.makeLibrary(self.line_library.text())
-        self.thread_prog.wait()
-        self.thread_prog.quit()
-        self.changeState(stopped=True)  
-        self.completer.model().setStringList(self.apg.getCandidate(target="anime"))
-        self.status.showMessage(self.sentences["fin_updating_database"])
+            # メッセージの表示
+            self.status.showMessage(self.sentences["fin_making_playlist"])
 
-        
-    def changeState(self, stopped=False):
-        self.stop.setEnabled(not stopped)
-        self.run.setEnabled(stopped)
-        self.db_update.setEnabled(stopped)
-        self.lockInput(state=stopped)
-        self.apg.reset()
+    def updateDB(self, signal):
+        """
+        UpdateDBスレッド実行時に呼び出される関数
+        空白を受信したらスレッドを終了する
+        """
+        if signal != "":
+            self.status.showMessage(signal)
+        else:
+            self.apg.reset()
+
+            self.thread_updateDB.wait()
+            self.thread_updateDB.quit()
+            self.thread_prog.wait()
+            self.thread_prog.quit()
+
+            self.resetProgress()
+            self.lockInput(enabled=True)
+            
+            # 検索候補の更新
+            self.completer.model().setStringList(self.apg.getCandidate(target="anime"))
+            
+            # メッセージの表示
+            self.status.showMessage(self.sentences["fin_updating_database"])
+
 
 def run(path_config='./config.ini', path_style='./styles/style.qss', logger=None):
     try:
